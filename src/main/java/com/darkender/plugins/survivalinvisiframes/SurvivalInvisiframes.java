@@ -1,6 +1,7 @@
 package com.darkender.plugins.survivalinvisiframes;
 
 import org.bukkit.*;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
@@ -18,9 +19,8 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class SurvivalInvisiframes extends JavaPlugin implements Listener
 {
@@ -55,9 +55,12 @@ public class SurvivalInvisiframes extends JavaPlugin implements Listener
         reload();
         
         getServer().getPluginManager().registerEvents(this, this);
-        InvisiFramesCommand invisiFramesCommand = new InvisiFramesCommand(this);
-        getCommand("iframe").setExecutor(invisiFramesCommand);
-        getCommand("iframe").setTabCompleter(invisiFramesCommand);
+        PluginCommand command = getCommand("iframe");
+        if (command != null) {
+            InvisiFramesCommand invisiFramesCommand = new InvisiFramesCommand(this);
+            command.setExecutor(invisiFramesCommand);
+            command.setTabCompleter(invisiFramesCommand);
+        }
     }
     
     @Override
@@ -109,13 +112,21 @@ public class SurvivalInvisiframes extends JavaPlugin implements Listener
     
         ItemStack invisibleItem = generateInvisibleItemFrame();
         invisibleItem.setAmount(8);
-        
-        ItemStack invisibilityPotion = getConfig().getItemStack("recipe");
-        ShapedRecipe invisRecipe = new ShapedRecipe(invisibleRecipe, invisibleItem);
-        invisRecipe.shape("FFF", "FPF", "FFF");
-        invisRecipe.setIngredient('F', Material.ITEM_FRAME);
-        invisRecipe.setIngredient('P', new RecipeChoice.ExactChoice(invisibilityPotion));
-        Bukkit.addRecipe(invisRecipe);
+
+        ShapedRecipe shapedRecipe = new ShapedRecipe(invisibleRecipe, invisibleItem);
+        shapedRecipe.shape(getConfig().getStringList("recipe.shape").toArray(new String[]{}));
+        for (Map<?, ?> ingredient : getConfig().getMapList("recipe.ingredients")) {
+            char name = ((String) ingredient.get("name")).charAt(0);
+            Object material = ingredient.get("material");
+            if (material instanceof String[]) {
+                shapedRecipe.setIngredient(name, new RecipeChoice.MaterialChoice(
+                        Arrays.stream((String[]) material).map(Material::matchMaterial).collect(Collectors.toList())
+                ));
+            } else {
+                shapedRecipe.setIngredient(name, Objects.requireNonNull(Material.matchMaterial((String) material)));
+            }
+        }
+        Bukkit.addRecipe(shapedRecipe);
     }
     
     public void forceRecheck()
